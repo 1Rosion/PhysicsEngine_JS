@@ -10,11 +10,14 @@ function mixin(target, source) {
 }
 
 export class World {
-    constructor(gravityX = 1, gravityY = 0) {
+    constructor(gravityX = 0, gravityY = 0) {
         this.gravityX = gravityX
         this.gravityY = gravityY
 
         this.colliders = []
+
+        this.time = Date.now()
+        this.friction = 0.05
     }
 
     newRectangleCollider (props = {}) {
@@ -33,24 +36,31 @@ export class World {
         return newCollider
     }
 
-    update(dt) {
+    update() {
+        const now = Date.now()
+        const dt = this.time - now
+        this.time = now
+
+        let a = dt / 10
+        
         this.colliders.forEach(coll => {
-            coll.update(dt);
+            coll.update(a);
         });
+
+        return dt
     }
 
-    draw(ctx){
+    draw({color = "black", ctx}){
         if (!ctx) throw new Error("ctx exeption : draw World")
 
         this.colliders.forEach(collider => {
-            collider.draw({ctx : ctx})
+            collider.draw({color: color, ctx : ctx})
         });
     }
 
-    // collides(coll1, coll2) {
-    //     const arr = [coll1.shapeName, coll2.shapeName]
-    //     arr.sort()
-    // }
+    collides(coll1, coll2) {
+        return coll1.collides(coll2)
+    }
 }
 
 export class Collider{
@@ -60,31 +70,46 @@ export class Collider{
                   w = 1, h = 1, 
                   r = 1, 
                   a = 0, 
-                  world
+                  world,
+                  m = 1
                 }){
         this.x = x
         this.y = y
-        this.m = 1 // mass in kg
+        this.m = m // mass in kg
 
         this.velocityX = 0 // m/s
         this.velocityY = 0 
 
         this.type = type
+        this.world = world
+
+        this.frictionY = 1
+        this.frictionX = 1
 
         this.update = (dt) => {}
 
         switch (this.type){
             case "dynamic": 
                 this.update = (dt) => {
-                    
+                    if (Math.abs(this.velocityX) < 0.001) this.velocityX = 0
+                    if (Math.abs(this.velocityY) < 0.001) this.velocityY = 0
+
+                    this.velocityX += this.world.gravityX * dt
+                    this.velocityY += this.world.gravityY * dt
+
+                    this.velocityX -= this.velocityX * this.world.friction
+                    this.velocityY -= this.velocityY * this.world.friction
+
+                    this.x += this.velocityX * dt
+                    this.y += this.velocityY * dt
                 }
-            break // poate fi modificat de forte din cod dar si din joc
+            break
             case "kinematic":
                 this.update = (dt) => {
 
                 }
-            break // starea poate sa se modifice din cod
-            case "static": break // nu poate fi modificat de forte
+            break
+            case "static": break 
         }
     }
 
@@ -125,13 +150,6 @@ export class CircleCollider extends Collider {
     collides(coll) {
         switch(coll.constructor.name){
             case "RectangleCollider":
-                const points = coll.shape.getPoints(coll.x, coll.y)
-
-                for (let i = 0; i < points.length; i++)
-                    if (this.shape.r > Vector.distance({ x: this.x, y: this.y }, points[i])) return true
-                
-
-
                 return checkCircleSquareCollision({ center: {x: this.x, y: this.y}, radius: this.shape.r }, coll.shape.getPoints(coll.x, coll.y))
             break
             case "CircleCollider":
