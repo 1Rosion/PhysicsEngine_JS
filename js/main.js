@@ -7,12 +7,17 @@ const ctx = canvas.getContext("2d")
 const world = new World()
 
 const Player = {
-    body : world.newRectangleCollider({shapeName : "rect", type : "dynamic", x : 100, y : 100, w : 100, h : 100, a : 0})
+    body : world.newRectangleCollider({type : "dynamic", x : 100, y : 100, w : 100, h : 100, a : 0})
 }
+
+const h1 = document.getElementsByTagName("H1")[0];
+let coll1 = world.newRectangleCollider({type : "dynamic", x : 150, y : 200, w : 100, h : 100, a : 0})
 
 function draw(){
     ctx.clearRect(0, 0, 1000, 1000)
     world.draw(ctx);
+
+    h1.innerHTML = coll1.collides(Player.body);
 }
 
 setInterval(draw, 10)

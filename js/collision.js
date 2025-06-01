@@ -1,5 +1,5 @@
-import * as shape from "./shape.js"
 import { Rectangle } from "./shape.js"
+import { Vector } from "./vector.js"
 
 function mixin(target, source) {
   Object.getOwnPropertyNames(source.constructor.prototype).forEach(name => {
@@ -105,11 +105,48 @@ export class RectangleCollider {
     collides(coll) {
         switch(this.constructor.name){
             case "RectangleCollider":
-
-
-
+                return checkCollisionSAT(this.getPoints(), coll.getPoints())
             break
         }
         
     }
+}
+
+function projectPolygon(axis, points) {
+    let min = Vector.dot(points[0], axis);
+    let max = min;
+    for (let i = 1; i < points.length; i++) {
+        const p = Vector.dot(points[i], axis);
+        if (p < min) min = p;
+        if (p > max) max = p;
+    }
+    return { min, max };
+}
+
+function overlaps(proj1, proj2) {
+    return proj1.max >= proj2.min && proj2.max >= proj1.min;
+}
+
+function getAxes(points) {
+    const axes = [];
+    for (let i = 0; i < points.length; i++) {
+        const next = (i + 1) % points.length;
+        const edge = Vector.subtract(points[next], points[i]);
+        const normal = Vector.normalize(Vector.perpendicular(edge));
+        axes.push(normal);
+    }
+    return axes;
+}
+
+function checkCollisionSAT(polygon1, polygon2) {
+    const axes = [...getAxes(polygon1), ...getAxes(polygon2)];
+    for (const axis of axes) {
+        const proj1 = projectPolygon(axis, polygon1);
+        const proj2 = projectPolygon(axis, polygon2);
+        if (!overlaps(proj1, proj2)) {
+            return false;
+        }
+    }
+
+  return true;
 }
