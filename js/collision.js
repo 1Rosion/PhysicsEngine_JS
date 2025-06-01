@@ -1,4 +1,4 @@
-import { Rectangle } from "./shape.js"
+import { Rectangle, Circle } from "./shape.js"
 import { Vector } from "./vector.js"
 
 function mixin(target, source) {
@@ -25,13 +25,13 @@ export class World {
         return newCollider
     }
 
-    // newCircleCollider (props = {}) {
-    //     props.world = this
-    //     const newCollider = new CircleCollider(props)
-    //     this.colliders.push(newCollider)
+    newCircleCollider (props = {}) {
+        props.world = this
+        const newCollider = new CircleCollider(props)
+        this.colliders.push(newCollider)
 
-    //     return newCollider
-    // }
+        return newCollider
+    }
 
     update(dt) {
         this.colliders.forEach(coll => {
@@ -56,12 +56,14 @@ export class World {
 export class Collider{
     constructor ({
                   type = "static", // static | kinematic | dynamic
-                  x = 0, y = 0, 
+                  x = 0, y = 0,
                   w = 1, h = 1, 
                   r = 1, 
                   a = 0, 
                   world
-                }){ 
+                }){
+        this.x = x
+        this.y = y
         this.m = 1 // mass in kg
 
         this.velocityX = 0 // m/s
@@ -92,23 +94,54 @@ export class Collider{
     }
 }
 
-export class RectangleCollider {
+export class RectangleCollider extends Collider {
     constructor (prop = {}){ 
-        const body = new Collider(prop)
-        const shape = new Rectangle(prop.x, prop.y, prop.w, prop.h, prop.a);
-
-        mixin(this, body)
-        mixin(this, shape)
-
+        super(prop)
+        this.shape = new Rectangle(prop.w, prop.h, prop.a);
     }
 
     collides(coll) {
-        switch(this.constructor.name){
+        switch(coll.name){
             case "RectangleCollider":
-                return checkCollisionSAT(this.getPoints(), coll.getPoints())
+                return checkCollisionSAT(this.shape.getPoints(), coll.shape.getPoints())
+            break
+            case "CircleCollider":
+                return coll.collides(this)
             break
         }
-        
+    }
+
+    draw(prop = {}) {
+        this.shape.draw({...prop, x: this.x, y: this.y})
+    }
+}
+
+export class CircleCollider extends Collider {
+    constructor (prop = {}){ 
+        super(prop)
+        this.shape = new Circle(prop.r, prop.a);
+    }
+
+    collides(coll) {
+        switch(coll.constructor.name){
+            case "RectangleCollider":
+                const points = coll.shape.getPoints(coll.x, coll.y)
+
+                for (let i = 0; i < points.length; i++)
+                    if (this.shape.r > Vector.distance({ x: this.x, y: this.y }, points[i])) return true
+                
+
+
+                return checkCircleSquareCollision({ center: {x: this.x, y: this.y}, radius: this.shape.r }, coll.shape.getPoints(coll.x, coll.y))
+            break
+            case "CircleCollider":
+                return this.shape.r + coll.shape.r > Vector.distance({ x: this.x, y: this.y }, { x: coll.x, y: coll.y })
+            break
+        }
+    }
+
+    draw(prop = {}) {
+        this.shape.draw({...prop, x: this.x, y: this.y})
     }
 }
 
@@ -149,4 +182,40 @@ function checkCollisionSAT(polygon1, polygon2) {
     }
 
   return true;
+}
+
+function lengthSquared(v) {
+  return v.x * v.x + v.y * v.y;
+}
+
+function pointInPolygon(p, polygon) {
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const pi = polygon[i], pj = polygon[j];
+    if ((pi.y > p.y) !== (pj.y > p.y) &&
+        p.x < (pj.x - pi.x) * (p.y - pi.y) / (pj.y - pi.y) + pi.x)
+      inside = !inside;
+  }
+  return inside;
+}
+
+function checkCircleSquareCollision(circle, square) {
+  for (let i = 0; i < square.length; i++) {
+    const a = square[i];
+    const b = square[(i + 1) % square.length];
+    const closest = closestPointOnSegment(circle.center, a, b);
+    const dist2 = lengthSquared(Vector.subtract(circle.center, closest));
+    if (dist2 <= circle.radius * circle.radius) return true;
+  }
+
+  if (pointInPolygon(circle.center, square)) return true;
+
+  return false;
+}
+
+function closestPointOnSegment(p, a, b) {
+  const ab = Vector.subtract(b, a);
+  const ap = Vector.subtract(p, a);
+  const t = Math.max(0, Math.min(1, Vector.dot(ap, ab) / Vector.dot(ab, ab)));
+  return { x: a.x + t * ab.x, y: a.y + t * ab.y };
 }

@@ -37,4 +37,16 @@ export class Vector {
     perpendicular(){
         return new Vector(-this.y, this.x);
     }
+
+    static length(v){
+        return Math.sqrt(v.x * v.x + v.y * v.y);
+    }
+
+    length(){
+        return Math.sqrt(this.x * this.x + this.y * this.y);
+    }
+
+    static distance(v1, v2){
+        return Math.sqrt(Math.pow(v1.x - v2.x, 2) + Math.pow(v1.y - v2.y, 2));
+    }
 }

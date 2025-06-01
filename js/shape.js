@@ -5,33 +5,30 @@ function ToRadians(degrees) {
 }
 
 export class Rectangle {
-    constructor (x = 0, y = 0, w = 0, h = 0, a = 0) {
-        this.x = x // center coords
-        this.y = y
-
+    constructor (w = 0, h = 0, a = 0) {
         this.w = w
         this.h = h
 
         this.a = a // rotation angle 
     }
 
-    getPoints() {
+    getPoints(x = 0, y = 0) {
         const diagonal = Math.sqrt(Math.pow(this.h /2, 2) + Math.pow(this.h /2, 2))
 
         return [
             // 100 - dia * cos(135)
-            new Vector(this.x - diagonal * Math.cos(ToRadians(135 + this.a)) , this.y - diagonal * Math.sin(ToRadians(135 + this.a))), // stanga sus
-            new Vector(this.x - diagonal * Math.cos(ToRadians(45  + this.a)) , this.y - diagonal * Math.sin(ToRadians(45  + this.a))), // stanga sus
-            new Vector(this.x - diagonal * Math.cos(ToRadians(-45 + this.a)) , this.y - diagonal * Math.sin(ToRadians(-45 + this.a))), // stanga sus
-            new Vector(this.x - diagonal * Math.cos(ToRadians(225 + this.a)) , this.y - diagonal * Math.sin(ToRadians(225 + this.a))), // stanga sus
+            new Vector(x - diagonal * Math.cos(ToRadians(135 + this.a)) , y - diagonal * Math.sin(ToRadians(135 + this.a))), // stanga sus
+            new Vector(x - diagonal * Math.cos(ToRadians(45  + this.a)) , y - diagonal * Math.sin(ToRadians(45  + this.a))), // stanga sus
+            new Vector(x - diagonal * Math.cos(ToRadians(-45 + this.a)) , y - diagonal * Math.sin(ToRadians(-45 + this.a))), // stanga sus
+            new Vector(x - diagonal * Math.cos(ToRadians(225 + this.a)) , y - diagonal * Math.sin(ToRadians(225 + this.a))), // stanga sus
         ]
     }
 
-    draw({color = "black", ctx}) {
+    draw({x = 0, y = 0, color = "black", ctx}) {
         if (!ctx) throw new Error("ctx exeption : draw Rect")
 
         const strokeStyle = ctx.strokeStyle;
-        const p = this.getPoints()
+        const p = this.getPoints(x, y)
 
         ctx.beginPath()
         ctx.moveTo(p[0].x, p[0].y)
@@ -48,21 +45,19 @@ export class Rectangle {
 }
 
 export class Circle {
-    constructor (x = 0, y = 0, r = 1, a = 0) {
-        this.x = x
-        this.y = y
+    constructor (r = 1, a = 0) {
         this.r = r
 
         this.a = a
     }
 
-    draw({color = "black", ctx}) {
+    draw({x = 0, y = 0, color = "black", ctx}) {
         if (!ctx) throw new Error("ctx exeption : draw Circle")
 
         const strokeStyle = ctx.strokeStyle;
 
         ctx.beginPath()
-        ctx.arc(this.x, this.y, this.r, this.a, Math.PI * 2)
+        ctx.arc(x, y, this.r, this.a, Math.PI * 2 + this.a)
 
         ctx.strokeStyle = color
         ctx.stroke()
