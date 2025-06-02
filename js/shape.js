@@ -13,15 +13,22 @@ export class Rectangle {
     }
 
     getPoints(x = 0, y = 0) {
-        const diagonal = Math.sqrt(Math.pow(this.h /2, 2) + Math.pow(this.h /2, 2))
+        const hw = this.w / 2
+        const hh = this.h / 2
+        const angle = ToRadians(this.a)
 
-        return [
-            // 100 - dia * cos(135)
-            new Vector(x - diagonal * Math.cos(ToRadians(135 + this.a)) , y - diagonal * Math.sin(ToRadians(135 + this.a))), // stanga sus
-            new Vector(x - diagonal * Math.cos(ToRadians(45  + this.a)) , y - diagonal * Math.sin(ToRadians(45  + this.a))), // stanga sus
-            new Vector(x - diagonal * Math.cos(ToRadians(-45 + this.a)) , y - diagonal * Math.sin(ToRadians(-45 + this.a))), // stanga sus
-            new Vector(x - diagonal * Math.cos(ToRadians(225 + this.a)) , y - diagonal * Math.sin(ToRadians(225 + this.a))), // stanga sus
+        const corners = [
+            { dx: -hw, dy: -hh },
+            { dx:  hw, dy: -hh },
+            { dx:  hw, dy:  hh },
+            { dx: -hw, dy:  hh },
         ]
+
+        return corners.map(({ dx, dy }) => {
+            const rotatedX = dx * Math.cos(angle) - dy * Math.sin(angle)
+            const rotatedY = dx * Math.sin(angle) + dy * Math.cos(angle)
+            return new Vector(x + rotatedX, y + rotatedY)
+        })
     }
 
     draw({x = 0, y = 0, color = "black", ctx}) {

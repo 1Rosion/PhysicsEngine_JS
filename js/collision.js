@@ -1,12 +1,16 @@
 import { Rectangle, Circle } from "./shape.js"
 import { Vector } from "./vector.js"
 
-function mixin(target, source) {
-  Object.getOwnPropertyNames(source.constructor.prototype).forEach(name => {
-    if (name !== 'constructor') {
-      target[name] = source[name].bind(source)
-    }
-  })
+// function mixin(target, source) {
+//   Object.getOwnPropertyNames(source.constructor.prototype).forEach(name => {
+//     if (name !== 'constructor') {
+//       target[name] = source[name].bind(source)
+//     }
+//   })
+// }
+
+function clamp(val, min, max) {
+    return Math.max(min, Math.min(max, val))
 }
 
 export class World {
@@ -14,7 +18,9 @@ export class World {
         this.gravityX = gravityX
         this.gravityY = gravityY
 
-        this.colliders = []
+        this.colliders = [] // array cu corpuri
+        this.collides = [] // sunt ciocnite acum
+        this.interacts = [] // erau ciocnite in cadrul trecut
 
         this.time = Date.now()
         this.friction = 0.05
@@ -38,13 +44,15 @@ export class World {
 
     update() {
         const now = Date.now()
-        const dt = this.time - now
+        const dt = (this.time - now) / 100
         this.time = now
 
-        let a = dt / 10
+        this.updateAllCollisions()
+        console.log(this.collides)
+        this.updateInteractions()
         
         this.colliders.forEach(coll => {
-            coll.update(a);
+            coll.update(dt);
         });
 
         return dt
@@ -61,27 +69,94 @@ export class World {
     collides(coll1, coll2) {
         return coll1.collides(coll2)
     }
+
+    updateAllCollisions() {
+        this.collides.length = 0
+
+        for(let i = 0; i < this.colliders.length - 1; i++)
+            for(let j = i + 1; j < this.colliders.length; j++)
+                if(this.colliders[j].collides(this.colliders[i]))
+                    this.collides.push([this.colliders[i], this.colliders[j]])
+
+        return this.collides
+    }
+    
+    updateInteractions() {
+        for(let i = 0; i < this.collides.length; i++) {
+            const e = Math.sqrt(this.collides[i][0].e * this.collides[i][1].e)
+            this.resolveStaticCollision(this.collides[i][0], this.collides[i][1])
+            this.resolveCollision(this.collides[i][0], this.collides[i][1], e)
+        }
+    }
+
+    resolveStaticCollision(A, B){
+        const n = A.overlap(B)
+        if (!n) return;
+
+        const moveA = (1 / A.m) / (1 / A.m + 1 / B.m)
+        const moveB = (1 / B.m) / (1 / A.m + 1 / B.m)
+
+        if (A.velocityX - A.velocityY == 0 && A.type != "static"){
+            A.x -= n.x * n.overlap * moveA
+            A.y -= n.y * n.overlap * moveA
+        }
+
+        if (B.velocityX - B.velocityY == 0 && B.type != "static"){
+            B.x += n.x * n.overlap * moveB
+            B.y += n.y * n.overlap * moveB
+        }
+    }
+
+    resolveCollision(obj1, obj2, restitution = 0.8) {
+        const m1 = obj1.m
+        const m2 = obj2.m
+
+        var u1 = obj1.velocityX
+        var u2 = obj2.velocityX
+
+        var v1 = ((m1 - restitution * m2) * u1 + (1 + restitution) * m2 * u2) / (m1 + m2)
+        var v2 = ((m2 - restitution * m1) * u2 + (1 + restitution) * m1 * u1) / (m1 + m2)
+
+        obj1.velocityX = v1
+        obj2.velocityX = v2
+
+        var u1 = obj1.velocityY
+        var u2 = obj2.velocityY
+
+        var v1 = ((m1 - restitution * m2) * u1 + (1 + restitution) * m2 * u2) / (m1 + m2)
+        var v2 = ((m2 - restitution * m1) * u2 + (1 + restitution) * m1 * u1) / (m1 + m2)
+
+        obj1.velocityY = v1
+        obj2.velocityY = v2
+    }
+
+    updateEvents(){
+    
+    }
 }
 
 export class Collider{
     constructor ({
-                  type = "static", // static | kinematic | dynamic
-                  x = 0, y = 0,
-                  w = 1, h = 1, 
-                  r = 1, 
-                  a = 0, 
-                  world,
-                  m = 1
+                    type = "static", // static | kinematic | dynamic
+                    x = 0, y = 0,
+                    w = 1, h = 1, 
+                    r = 1, 
+                    a = 0, 
+                    world,
+                    m = 1,
+                    e = 0.5,
+                    tags = ["collider"]
                 }){
         this.x = x
         this.y = y
         this.m = m // mass in kg
-
+        this.e = e > 0 ? e < 1 ? e : e % 1 : 0 // elasticitate
         this.velocityX = 0 // m/s
         this.velocityY = 0 
 
         this.type = type
         this.world = world
+        this.tags = [...tags]
 
         this.frictionY = 1
         this.frictionX = 1
@@ -126,12 +201,39 @@ export class RectangleCollider extends Collider {
     }
 
     collides(coll) {
-        switch(coll.name){
+        switch(coll.constructor.name){
             case "RectangleCollider":
                 return checkCollisionSAT(this.shape.getPoints(), coll.shape.getPoints())
             break
             case "CircleCollider":
                 return coll.collides(this)
+            break
+        }
+    }
+
+    overlap(coll){
+        switch(coll.constructor.name){
+            case "RectangleCollider":
+                const [center1, center2] = [{x: this.x, y: this.y}, {x: coll.x, y: coll.y}]
+                const d = Vector.subtract(center1, center2)
+        
+                const overlapX = this.shape.w/2 + coll.shape.w/2 - Math.abs(d.x)
+                const overlapY = this.shape.h/2 + coll.shape.h/2 - Math.abs(d.y)
+        
+                if (overlapX > 0 && overlapY > 0) {
+                    if (overlapX < overlapY) {
+                        const direction = d.x < 0 ? -1 : 1;
+                        return { x: direction * overlapX, y: 0, overlap: overlapX };
+                    } else {
+                        const direction = d.y < 0 ? -1 : 1;
+                        return { x: 0, y: direction * overlapY, overlap: overlapY };
+                    }
+                }
+
+                return null
+            break
+            case "CircleCollider":
+                coll.overlap(this)
             break
         }
     }
@@ -150,11 +252,68 @@ export class CircleCollider extends Collider {
     collides(coll) {
         switch(coll.constructor.name){
             case "RectangleCollider":
+                
                 return checkCircleSquareCollision({ center: {x: this.x, y: this.y}, radius: this.shape.r }, coll.shape.getPoints(coll.x, coll.y))
             break
             case "CircleCollider":
                 return this.shape.r + coll.shape.r > Vector.distance({ x: this.x, y: this.y }, { x: coll.x, y: coll.y })
             break
+        }
+    }
+
+    overlap(coll) {
+        switch (coll.constructor.name){
+            case "CircleCollider":
+                const d = Vector.subtract({x: this.x, y: this.y}, {x: coll.x, y: coll.y})
+                const dist = sqrt(d.x * d.x + d.y * d.y)
+
+                const normalX = d.x / dist
+                const normalY = d.y / dist
+
+                const overlap = this.shape.r + coll.shape.r - dist
+
+                if (overlap > 0) {
+                    return {
+                        x: normalX * overlap,
+                        y: normalY * overlap,
+                        overlap: overlap
+                    }
+                }
+
+                return null
+            break
+            case "RectangleCollider": 
+                const cx = this.x
+                const cy = this.y
+                const r = this.shape.r
+
+                const rx = coll.x
+                const ry = coll.y
+                const w = coll.shape.w
+                const h = coll.shape.h
+
+                const closestX = clamp(cx, rx, rx + w)
+                const closestY = clamp(cy, ry, ry + h)
+
+                const dx = cx - closestX
+                const dy = cy - closestY
+                const distSq = dx * dx + dy * dy
+
+                if (distSq < r * r) {
+                    const dist = Math.sqrt(distSq)
+                    const overlap = r - dist
+                    const nx = dx / dist
+                    const ny = dy / dist
+
+                    return {
+                        x: nx * overlap,
+                        y: ny * overlap,
+                        overlap: overlap
+                    }
+                }
+
+                return null
+            break;
         }
     }
 
