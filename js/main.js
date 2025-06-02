@@ -4,7 +4,7 @@ import { World, Collider } from './collision.js'
 const canvas = document.querySelector("canvas")
 const ctx = canvas.getContext("2d")
 
-const world = new World(100, 100)
+const world = new World(0, 100)
 
 const Player = {
     body : world.newRectangleCollider({type : "dynamic", x : 500, y : 100, w : 200, h : 200, a : 0, m: 1})
@@ -19,11 +19,15 @@ let coll4 = world.newRectangleCollider({type : "static", x : 500, y : 400, w: 10
 
 
 
+const keysPressed = {}
 
+document.addEventListener("keydown", (e) => {
+    keysPressed[e.key] = true
+})
 
-
-
-
+document.addEventListener("keyup", (e) => {
+    keysPressed[e.key] = false
+})
 
 
 
@@ -36,6 +40,12 @@ let coll4 = world.newRectangleCollider({type : "static", x : 500, y : 400, w: 10
 
 
 async function update(){
+    if (keysPressed["d"])
+            Player.body.push(-10, 0)
+    if (keysPressed["a"])
+            Player.body.push(10, 0)
+    if (keysPressed[" "])
+            Player.body.push(0, 10)
     world.update()
     requestAnimationFrame(update)
 }
