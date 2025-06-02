@@ -47,13 +47,17 @@ export class World {
         const dt = (this.time - now) / 100
         this.time = now
 
-        this.updateAllCollisions()
-        console.log(this.collides)
-        this.updateInteractions()
-        
         this.colliders.forEach(coll => {
             coll.update(dt);
         });
+
+        this.updateAllCollisions()
+        this.updateInteractions()
+
+        this.colliders.forEach(coll => {
+            if (coll.type === "dynamic") coll.applyVelocity(dt);
+        });
+        
 
         return dt
     }
@@ -117,8 +121,8 @@ export class World {
         var v1 = ((m1 - restitution * m2) * u1 + (1 + restitution) * m2 * u2) / (m1 + m2)
         var v2 = ((m2 - restitution * m1) * u2 + (1 + restitution) * m1 * u1) / (m1 + m2)
 
-        obj1.velocityX = v1
-        obj2.velocityX = v2
+        obj1.setVelocity({x: v1})
+        obj2.setVelocity({x: v2})
 
         var u1 = obj1.velocityY
         var u2 = obj2.velocityY
@@ -126,8 +130,8 @@ export class World {
         var v1 = ((m1 - restitution * m2) * u1 + (1 + restitution) * m2 * u2) / (m1 + m2)
         var v2 = ((m2 - restitution * m1) * u2 + (1 + restitution) * m1 * u1) / (m1 + m2)
 
-        obj1.velocityY = v1
-        obj2.velocityY = v2
+        obj1.setVelocity({y: v1})
+        obj2.setVelocity({y: v2})
     }
 
     updateEvents(){
@@ -166,17 +170,19 @@ export class Collider{
         switch (this.type){
             case "dynamic": 
                 this.update = (dt) => {
-                    if (Math.abs(this.velocityX) < 0.001) this.velocityX = 0
-                    if (Math.abs(this.velocityY) < 0.001) this.velocityY = 0
+                    if (Math.abs(this.velocityX) < 0.001) this.setVelocity({x: 0})
+                    if (Math.abs(this.velocityY) < 0.001) this.setVelocity({y: 0})
 
                     this.velocityX += this.world.gravityX * dt
                     this.velocityY += this.world.gravityY * dt
 
                     this.velocityX -= this.velocityX * this.world.friction
                     this.velocityY -= this.velocityY * this.world.friction
+                }
 
-                    this.x += this.velocityX * dt
-                    this.y += this.velocityY * dt
+                this.setVelocity = ({x = this.velocityX, y = this.velocityY}) => {
+                    this.velocityX = x
+                    this.velocityY = y
                 }
             break
             case "kinematic":
@@ -184,13 +190,35 @@ export class Collider{
 
                 }
             break
-            case "static": break 
+            case "static": 
+                this.setVelocity = ({x = this.velocityX, y = this.velocityY}) => {}
+            break 
         }
     }
 
     push(x = 0, y = 0) {
         this.velocityX += x
         this.velocityY += y
+    }
+
+    applyVelocity(dt) {
+        const newX = this.x + this.velocityX * dt;
+        const newY = this.y + this.velocityY * dt;
+
+        // temporar mutăm obiectul și verificăm coliziuni
+        const oldX = this.x, oldY = this.y;
+
+        this.x = newX;
+        if (this.world.colliders.some(c => c !== this && this.collides(c))) {
+            this.x = oldX;
+            this.velocityX = 0;
+        }
+
+        this.y = newY;
+        if (this.world.colliders.some(c => c !== this && this.collides(c))) {
+            this.y = oldY;
+            this.velocityY = 0;
+        }
     }
 }
 
@@ -203,7 +231,7 @@ export class RectangleCollider extends Collider {
     collides(coll) {
         switch(coll.constructor.name){
             case "RectangleCollider":
-                return checkCollisionSAT(this.shape.getPoints(), coll.shape.getPoints())
+                return checkCollisionSAT(this.shape.getPoints(this.x, this.y), coll.shape.getPoints(coll.x, coll.y))
             break
             case "CircleCollider":
                 return coll.collides(this)
